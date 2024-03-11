@@ -2,6 +2,7 @@ namespace DotNet.Testcontainers
 {
   using System;
   using System.Collections.Generic;
+  using System.Text.Json;
   using System.Text.RegularExpressions;
   using DotNet.Testcontainers.Images;
   using Microsoft.Extensions.Logging;
@@ -31,8 +32,8 @@ namespace DotNet.Testcontainers
     private static readonly Action<ILogger, string, Exception> _CompleteReadinessCheck
       = LoggerMessage.Define<string>(LogLevel.Information, default, "Docker container {Id} ready");
 
-    private static readonly Action<ILogger, string, string, Exception> _CopyArchiveToDockerContainer
-      = LoggerMessage.Define<string, string>(LogLevel.Information, default, "Copy tar archive to \"{Path}\" to Docker container {Id}");
+    private static readonly Action<ILogger, long, string, Exception> _CopyArchiveToDockerContainer
+      = LoggerMessage.Define<long, string>(LogLevel.Information, default, "Copy tar archive to container: Content length: {Length} byte(s), Docker container: {Id}");
 
     private static readonly Action<ILogger, string, string, Exception> _ReadArchiveFromDockerContainer
       = LoggerMessage.Define<string, string>(LogLevel.Information, default, "Read \"{Path}\" from Docker container {Id}");
@@ -82,11 +83,32 @@ namespace DotNet.Testcontainers
     private static readonly Action<ILogger, string, Exception> _SearchingDockerRegistryCredential
       = LoggerMessage.Define<string>(LogLevel.Information, default, "Searching Docker registry credential in {CredentialStore}");
 
+    private static readonly Action<ILogger, string, JsonValueKind, Exception> _DockerRegistryAuthPropertyValueKindInvalid
+      = LoggerMessage.Define<string, JsonValueKind>(LogLevel.Warning, default, "The \"auth\" property value kind for {DockerRegistry} is invalid: {ValueKind}");
+
+    private static readonly Action<ILogger, string, Exception> _DockerRegistryAuthPropertyValueNotFound
+      = LoggerMessage.Define<string>(LogLevel.Warning, default, "The \"auth\" property value for {DockerRegistry} not found");
+
+    private static readonly Action<ILogger, string, Exception> _DockerRegistryAuthPropertyValueInvalidBase64
+      = LoggerMessage.Define<string>(LogLevel.Warning, default, "The \"auth\" property value for {DockerRegistry} is not a valid Base64 string");
+
+    private static readonly Action<ILogger, string, Exception> _DockerRegistryAuthPropertyValueInvalidBasicAuthenticationFormat
+      = LoggerMessage.Define<string>(LogLevel.Warning, default, "The \"auth\" property value for {DockerRegistry} should contain one colon separating the username and the password (basic authentication)");
+
     private static readonly Action<ILogger, string, Exception> _DockerRegistryCredentialNotFound
       = LoggerMessage.Define<string>(LogLevel.Information, default, "Docker registry credential {DockerRegistry} not found");
 
     private static readonly Action<ILogger, string, Exception> _DockerRegistryCredentialFound
       = LoggerMessage.Define<string>(LogLevel.Information, default, "Docker registry credential {DockerRegistry} found");
+
+    private static readonly Action<ILogger, Exception> _ReusableExperimentalFeature
+      = LoggerMessage.Define(LogLevel.Warning, default, "Reuse is an experimental feature. For more information, visit: https://dotnet.testcontainers.org/api/resource_reuse/");
+
+    private static readonly Action<ILogger, Exception> _ReusableResourceFound
+      = LoggerMessage.Define(LogLevel.Information, default, "Reusable resource found");
+
+    private static readonly Action<ILogger, Exception> _ReusableResourceNotFound
+      = LoggerMessage.Define(LogLevel.Information, default, "Reusable resource not found, create resource");
 
 #pragma warning restore InconsistentNaming, SA1309
 
@@ -125,9 +147,9 @@ namespace DotNet.Testcontainers
       _CompleteReadinessCheck(logger, TruncId(id), null);
     }
 
-    public static void CopyArchiveToDockerContainer(this ILogger logger, string id, string path)
+    public static void CopyArchiveToDockerContainer(this ILogger logger, string id, long length)
     {
-      _CopyArchiveToDockerContainer(logger, path, TruncId(id), null);
+      _CopyArchiveToDockerContainer(logger, length, TruncId(id), null);
     }
 
     public static void ReadArchiveFromDockerContainer(this ILogger logger, string id, string path)
@@ -212,6 +234,26 @@ namespace DotNet.Testcontainers
       _SearchingDockerRegistryCredential(logger, credentialStore, null);
     }
 
+    public static void DockerRegistryAuthPropertyValueKindInvalid(this ILogger logger, string dockerRegistry, JsonValueKind valueKind)
+    {
+      _DockerRegistryAuthPropertyValueKindInvalid(logger, dockerRegistry, valueKind, null);
+    }
+
+    public static void DockerRegistryAuthPropertyValueNotFound(this ILogger logger, string dockerRegistry)
+    {
+      _DockerRegistryAuthPropertyValueNotFound(logger, dockerRegistry, null);
+    }
+
+    public static void DockerRegistryAuthPropertyValueInvalidBase64(this ILogger logger, string dockerRegistry, Exception e)
+    {
+      _DockerRegistryAuthPropertyValueInvalidBase64(logger, dockerRegistry, e);
+    }
+
+    public static void DockerRegistryAuthPropertyValueInvalidBasicAuthenticationFormat(this ILogger logger, string dockerRegistry)
+    {
+      _DockerRegistryAuthPropertyValueInvalidBasicAuthenticationFormat(logger, dockerRegistry, null);
+    }
+
     public static void DockerRegistryCredentialNotFound(this ILogger logger, string dockerRegistry)
     {
       _DockerRegistryCredentialNotFound(logger, dockerRegistry, null);
@@ -220,6 +262,21 @@ namespace DotNet.Testcontainers
     public static void DockerRegistryCredentialFound(this ILogger logger, string dockerRegistry)
     {
       _DockerRegistryCredentialFound(logger, dockerRegistry, null);
+    }
+
+    public static void ReusableExperimentalFeature(this ILogger logger)
+    {
+      _ReusableExperimentalFeature(logger, null);
+    }
+
+    public static void ReusableResourceFound(this ILogger logger)
+    {
+      _ReusableResourceFound(logger, null);
+    }
+
+    public static void ReusableResourceNotFound(this ILogger logger)
+    {
+      _ReusableResourceNotFound(logger, null);
     }
 
     private static string TruncId(string id)

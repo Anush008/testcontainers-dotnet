@@ -2,6 +2,7 @@ namespace DotNet.Testcontainers.Configurations
 {
   using System;
   using System.Collections.Generic;
+  using System.Text.Json.Serialization;
   using Docker.DotNet.Models;
   using DotNet.Testcontainers.Builders;
   using DotNet.Testcontainers.Images;
@@ -24,7 +25,7 @@ namespace DotNet.Testcontainers.Configurations
       string dockerfile = null,
       string dockerfileDirectory = null,
       IImage image = null,
-      Func<ImagesListResponse, bool> imageBuildPolicy = null,
+      Func<ImageInspectResponse, bool> imageBuildPolicy = null,
       IReadOnlyDictionary<string, string> buildArguments = null,
       bool? deleteIfExists = null)
     {
@@ -71,21 +72,27 @@ namespace DotNet.Testcontainers.Configurations
     }
 
     /// <inheritdoc />
+    [JsonIgnore]
     public bool? DeleteIfExists { get; }
 
     /// <inheritdoc />
+    [JsonIgnore]
     public string Dockerfile { get; }
 
     /// <inheritdoc />
+    [JsonIgnore]
     public string DockerfileDirectory { get; }
 
     /// <inheritdoc />
+    [JsonIgnore]
     public IImage Image { get; }
 
     /// <inheritdoc />
-    public Func<ImagesListResponse, bool> ImageBuildPolicy { get; }
+    [JsonIgnore]
+    public Func<ImageInspectResponse, bool> ImageBuildPolicy { get; }
 
     /// <inheritdoc />
+    [JsonIgnore]
     public IReadOnlyDictionary<string, string> BuildArguments { get; }
   }
 }

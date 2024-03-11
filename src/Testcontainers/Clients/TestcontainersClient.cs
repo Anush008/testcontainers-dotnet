@@ -9,7 +9,6 @@ namespace DotNet.Testcontainers.Clients
   using System.Threading;
   using System.Threading.Tasks;
   using Docker.DotNet;
-  using Docker.DotNet.Models;
   using DotNet.Testcontainers.Builders;
   using DotNet.Testcontainers.Configurations;
   using DotNet.Testcontainers.Containers;
@@ -27,6 +26,8 @@ namespace DotNet.Testcontainers.Clients
     public const string TestcontainersVersionLabel = TestcontainersLabel + ".version";
 
     public const string TestcontainersSessionIdLabel = TestcontainersLabel + ".session-id";
+
+    public const string TestcontainersReuseHashLabel = TestcontainersLabel + ".reuse-hash";
 
     public static readonly string Version = typeof(TestcontainersClient).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>().InformationalVersion;
 
@@ -99,29 +100,23 @@ namespace DotNet.Testcontainers.Clients
     /// <inheritdoc />
     public Task<(string Stdout, string Stderr)> GetContainerLogsAsync(string id, DateTime since = default, DateTime until = default, bool timestampsEnabled = true, CancellationToken ct = default)
     {
-#if NETSTANDARD2_1_OR_GREATER
-      var unixEpoch = DateTime.UnixEpoch;
-#else
+#if NETSTANDARD2_0
       var unixEpoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+#else
+      var unixEpoch = DateTime.UnixEpoch;
 #endif
 
       if (default(DateTime).Equals(since))
       {
-        since = DateTime.MinValue;
+        since = unixEpoch;
       }
 
       if (default(DateTime).Equals(until))
       {
-        until = DateTime.MaxValue;
+        until = unixEpoch;
       }
 
       return Container.GetLogsAsync(id, since.ToUniversalTime().Subtract(unixEpoch), until.ToUniversalTime().Subtract(unixEpoch), timestampsEnabled, ct);
-    }
-
-    /// <inheritdoc />
-    public Task<ContainerInspectResponse> InspectContainerAsync(string id, CancellationToken ct = default)
-    {
-      return Container.InspectAsync(id, ct);
     }
 
     /// <inheritdoc />
@@ -200,7 +195,7 @@ namespace DotNet.Testcontainers.Clients
         return;
       }
 
-      using (var tarOutputMemStream = new TarOutputMemoryStream())
+      using (var tarOutputMemStream = new TarOutputMemoryStream(_logger))
       {
         await tarOutputMemStream.AddAsync(resourceMapping, ct)
           .ConfigureAwait(false);
@@ -216,7 +211,7 @@ namespace DotNet.Testcontainers.Clients
     /// <inheritdoc />
     public async Task CopyAsync(string id, DirectoryInfo source, string target, UnixFileModes fileMode, CancellationToken ct = default)
     {
-      using (var tarOutputMemStream = new TarOutputMemoryStream(target))
+      using (var tarOutputMemStream = new TarOutputMemoryStream(target, _logger))
       {
         await tarOutputMemStream.AddAsync(source, true, fileMode, ct)
           .ConfigureAwait(false);
@@ -232,7 +227,7 @@ namespace DotNet.Testcontainers.Clients
     /// <inheritdoc />
     public async Task CopyAsync(string id, FileInfo source, string target, UnixFileModes fileMode, CancellationToken ct = default)
     {
-      using (var tarOutputMemStream = new TarOutputMemoryStream(target))
+      using (var tarOutputMemStream = new TarOutputMemoryStream(target, _logger))
       {
         await tarOutputMemStream.AddAsync(source, fileMode, ct)
           .ConfigureAwait(false);
@@ -276,11 +271,11 @@ namespace DotNet.Testcontainers.Clients
 
         var readBytes = new byte[entry.Size];
 
-#if NETSTANDARD2_1_OR_GREATER
-        _ = await tarInputStream.ReadAsync(new Memory<byte>(readBytes), ct)
+#if NETSTANDARD2_0
+        _ = await tarInputStream.ReadAsync(readBytes, 0, readBytes.Length, ct)
           .ConfigureAwait(false);
 #else
-        _ = await tarInputStream.ReadAsync(readBytes, 0, readBytes.Length, ct)
+        _ = await tarInputStream.ReadAsync(readBytes, ct)
           .ConfigureAwait(false);
 #endif
 
@@ -300,7 +295,7 @@ namespace DotNet.Testcontainers.Clients
           .ConfigureAwait(false);
       }
 
-      var cachedImage = await Image.ByNameAsync(configuration.Image.FullName, ct)
+      var cachedImage = await Image.ByIdAsync(configuration.Image.FullName, ct)
         .ConfigureAwait(false);
 
       if (configuration.ImagePullPolicy(cachedImage))
@@ -320,7 +315,7 @@ namespace DotNet.Testcontainers.Clients
 
       if (configuration.ResourceMappings.Any())
       {
-        await Task.WhenAll(configuration.ResourceMappings.Values.Select(resourceMapping => CopyAsync(id, resourceMapping, ct)))
+        await Task.WhenAll(configuration.ResourceMappings.Select(resourceMapping => CopyAsync(id, resourceMapping, ct)))
           .ConfigureAwait(false);
       }
 
@@ -330,14 +325,25 @@ namespace DotNet.Testcontainers.Clients
     /// <inheritdoc />
     public async Task<string> BuildAsync(IImageFromDockerfileConfiguration configuration, CancellationToken ct = default)
     {
-      var cachedImage = await Image.ByNameAsync(configuration.Image.FullName, ct)
+      var cachedImage = await Image.ByIdAsync(configuration.Image.FullName, ct)
         .ConfigureAwait(false);
 
       if (configuration.ImageBuildPolicy(cachedImage))
       {
         var dockerfileArchive = new DockerfileArchive(configuration.DockerfileDirectory, configuration.Dockerfile, configuration.Image, _logger);
 
-        await Task.WhenAll(dockerfileArchive.GetBaseImages().Select(image => PullImageAsync(image, ct)))
+        var baseImages = dockerfileArchive.GetBaseImages().ToArray();
+
+        var filters = baseImages.Aggregate(new FilterByProperty(), (dictionary, baseImage) => dictionary.Add("reference", baseImage.FullName));
+
+        var cachedImages = await Image.GetAllAsync(filters, ct)
+          .ConfigureAwait(false);
+
+        var repositoryTags = new HashSet<string>(cachedImages.SelectMany(image => image.RepoTags ?? Array.Empty<string>()));
+
+        var uncachedImages = baseImages.Where(baseImage => !repositoryTags.Contains(baseImage.FullName));
+
+        await Task.WhenAll(uncachedImages.Select(image => PullImageAsync(image, ct)))
           .ConfigureAwait(false);
 
         _ = await Image.BuildAsync(configuration, dockerfileArchive, ct)

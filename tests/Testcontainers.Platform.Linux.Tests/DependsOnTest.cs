@@ -56,17 +56,17 @@ public sealed class DependsOnTest : IAsyncLifetime
 
         // When
         var containers = await client.Containers.ListContainersAsync(containersListParameters)
-            .ConfigureAwait(false);
+            .ConfigureAwait(true);
 
         var networks = await client.Networks.ListNetworksAsync(networksListParameters)
-            .ConfigureAwait(false);
+            .ConfigureAwait(true);
 
         var volumesListResponse = await client.Volumes.ListAsync(volumesListParameters)
-            .ConfigureAwait(false);
+            .ConfigureAwait(true);
 
         // Then
         Assert.Equal(3, containers.Count);
-        Assert.Equal(1, networks.Count);
-        Assert.Equal(1, volumesListResponse.Volumes.Count);
+        Assert.Single(networks);
+        Assert.Single(volumesListResponse.Volumes);
     }
 }

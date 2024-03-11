@@ -2,6 +2,7 @@ namespace DotNet.Testcontainers.Configurations
 {
   using System;
   using System.Collections.Generic;
+  using System.Text.Json.Serialization;
   using System.Threading;
   using System.Threading.Tasks;
   using Docker.DotNet.Models;
@@ -29,7 +30,7 @@ namespace DotNet.Testcontainers.Configurations
     /// <param name="environments">A dictionary of environment variables.</param>
     /// <param name="exposedPorts">A dictionary of exposed ports.</param>
     /// <param name="portBindings">A dictionary of port bindings.</param>
-    /// <param name="resourceMappings">A dictionary of resource mappings.</param>
+    /// <param name="resourceMappings">A list of resource mappings.</param>
     /// <param name="containers">A list of containers.</param>
     /// <param name="mounts">A list of mounts.</param>
     /// <param name="networks">A list of networks.</param>
@@ -42,7 +43,7 @@ namespace DotNet.Testcontainers.Configurations
     /// <param name="privileged">A value indicating whether the privileged flag is set or not.</param>
     public ContainerConfiguration(
       IImage image = null,
-      Func<ImagesListResponse, bool> imagePullPolicy = null,
+      Func<ImageInspectResponse, bool> imagePullPolicy = null,
       string name = null,
       string hostname = null,
       string macAddress = null,
@@ -52,7 +53,7 @@ namespace DotNet.Testcontainers.Configurations
       IReadOnlyDictionary<string, string> environments = null,
       IReadOnlyDictionary<string, string> exposedPorts = null,
       IReadOnlyDictionary<string, string> portBindings = null,
-      IReadOnlyDictionary<string, IResourceMapping> resourceMappings = null,
+      IEnumerable<IResourceMapping> resourceMappings = null,
       IEnumerable<IContainer> containers = null,
       IEnumerable<IMount> mounts = null,
       IEnumerable<INetwork> networks = null,
@@ -139,27 +140,34 @@ namespace DotNet.Testcontainers.Configurations
     }
 
     /// <inheritdoc />
+    [JsonIgnore]
     public bool? AutoRemove { get; }
 
     /// <inheritdoc />
+    [JsonIgnore]
     public bool? Privileged { get; }
 
     /// <inheritdoc />
     public IImage Image { get; }
 
     /// <inheritdoc />
-    public Func<ImagesListResponse, bool> ImagePullPolicy { get; }
+    [JsonIgnore]
+    public Func<ImageInspectResponse, bool> ImagePullPolicy { get; }
 
     /// <inheritdoc />
+    [JsonIgnore]
     public string Name { get; }
 
     /// <inheritdoc />
+    [JsonIgnore]
     public string Hostname { get; }
 
     /// <inheritdoc />
+    [JsonIgnore]
     public string MacAddress { get; }
 
     /// <inheritdoc />
+    [JsonIgnore]
     public string WorkingDirectory { get; }
 
     /// <inheritdoc />
@@ -178,15 +186,19 @@ namespace DotNet.Testcontainers.Configurations
     public IReadOnlyDictionary<string, string> PortBindings { get; }
 
     /// <inheritdoc />
-    public IReadOnlyDictionary<string, IResourceMapping> ResourceMappings { get; }
+    [JsonIgnore]
+    public IEnumerable<IResourceMapping> ResourceMappings { get; }
 
     /// <inheritdoc />
+    [JsonIgnore]
     public IEnumerable<IContainer> Containers { get; }
 
     /// <inheritdoc />
+    [JsonIgnore]
     public IEnumerable<IMount> Mounts { get; }
 
     /// <inheritdoc />
+    [JsonIgnore]
     public IEnumerable<INetwork> Networks { get; }
 
     /// <inheritdoc />
@@ -196,12 +208,15 @@ namespace DotNet.Testcontainers.Configurations
     public IEnumerable<string> ExtraHosts { get; }
 
     /// <inheritdoc />
+    [JsonIgnore]
     public IOutputConsumer OutputConsumer { get; }
 
     /// <inheritdoc />
+    [JsonIgnore]
     public IEnumerable<IWaitUntil> WaitStrategies { get; }
 
     /// <inheritdoc />
+    [JsonIgnore]
     public Func<IContainer, CancellationToken, Task> StartupCallback { get; }
   }
 }

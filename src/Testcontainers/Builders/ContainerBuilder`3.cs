@@ -84,7 +84,7 @@ namespace DotNet.Testcontainers.Builders
     }
 
     /// <inheritdoc />
-    public TBuilderEntity WithImagePullPolicy(Func<ImagesListResponse, bool> imagePullPolicy)
+    public TBuilderEntity WithImagePullPolicy(Func<ImageInspectResponse, bool> imagePullPolicy)
     {
       return Clone(new ContainerConfiguration(imagePullPolicy: imagePullPolicy));
     }
@@ -184,7 +184,7 @@ namespace DotNet.Testcontainers.Builders
     /// <inheritdoc />
     public TBuilderEntity WithResourceMapping(IResourceMapping resourceMapping)
     {
-      var resourceMappings = new Dictionary<string, IResourceMapping> { { resourceMapping.Target, resourceMapping } };
+      var resourceMappings = new[] { resourceMapping };
       return Clone(new ContainerConfiguration(resourceMappings: resourceMappings));
     }
 
@@ -197,6 +197,11 @@ namespace DotNet.Testcontainers.Builders
     /// <inheritdoc />
     public TBuilderEntity WithResourceMapping(string source, string target, UnixFileModes fileMode = Unix.FileMode644)
     {
+      if (Uri.IsWellFormedUriString(source, UriKind.Absolute) && Uri.TryCreate(source, UriKind.Absolute, out var uri) && new[] { Uri.UriSchemeHttp, Uri.UriSchemeHttps, Uri.UriSchemeFile }.Contains(uri.Scheme))
+      {
+        return WithResourceMapping(uri, target, fileMode);
+      }
+
       var fileAttributes = File.GetAttributes(source);
 
       if ((fileAttributes & FileAttributes.Directory) == FileAttributes.Directory)
@@ -231,6 +236,19 @@ namespace DotNet.Testcontainers.Builders
           var resourceContent = streamReader.ReadBytes((int)streamReader.BaseStream.Length);
           return WithResourceMapping(resourceContent, target.ToString(), fileMode);
         }
+      }
+    }
+
+    /// <inheritdoc />
+    public TBuilderEntity WithResourceMapping(Uri source, string target, UnixFileModes fileMode = Unix.FileMode644)
+    {
+      if (source.IsFile)
+      {
+        return WithResourceMapping(new FileResourceMapping(source.AbsolutePath, target, fileMode));
+      }
+      else
+      {
+        return WithResourceMapping(new UriResourceMapping(source, target, fileMode));
       }
     }
 
@@ -363,6 +381,10 @@ namespace DotNet.Testcontainers.Builders
     protected override void Validate()
     {
       base.Validate();
+
+      const string reuseNotSupported = "Reuse cannot be used in conjunction with WithAutoRemove(true).";
+      _ = Guard.Argument(DockerResourceConfiguration, nameof(IContainerConfiguration.Reuse))
+        .ThrowIf(argument => argument.Value.Reuse.HasValue && argument.Value.Reuse.Value && argument.Value.AutoRemove.HasValue && argument.Value.AutoRemove.Value, argument => new ArgumentException(reuseNotSupported, argument.Name));
 
       _ = Guard.Argument(DockerResourceConfiguration.Image, nameof(IContainerConfiguration.Image))
         .NotNull();

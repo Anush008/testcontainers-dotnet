@@ -1,14 +1,3 @@
-using System;
-using System.Net.Http;
-using System.Security.Cryptography.X509Certificates;
-using System.Threading.Tasks;
-using DotNet.Testcontainers.Builders;
-using DotNet.Testcontainers.Containers;
-using DotNet.Testcontainers.Networks;
-using JetBrains.Annotations;
-using Testcontainers.SqlEdge;
-using Xunit;
-
 namespace WeatherForecast.Tests;
 
 [UsedImplicitly]
@@ -33,7 +22,7 @@ public sealed class WeatherForecastContainer : HttpClient, IAsyncLifetime
   {
     const string weatherForecastStorage = "weatherForecastStorage";
 
-    const string connectionString = $"server={weatherForecastStorage};user id={SqlEdgeBuilder.DefaultUsername};password={SqlEdgeBuilder.DefaultPassword};database={SqlEdgeBuilder.DefaultDatabase}";
+    const string connectionString = $"Server={weatherForecastStorage};User Id={SqlEdgeBuilder.DefaultUsername};Password={SqlEdgeBuilder.DefaultPassword};Database={SqlEdgeBuilder.DefaultDatabase};TrustServerCertificate=True";
 
     _weatherForecastNetwork = new NetworkBuilder()
       .Build();

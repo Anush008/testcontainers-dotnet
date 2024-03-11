@@ -1,19 +1,8 @@
-using System;
-using System.Collections.Generic;
-using System.Globalization;
-using System.IO;
-using System.Linq;
-using System.Net;
-using System.Text.Json;
-using System.Threading.Tasks;
-using DotNet.Testcontainers.Builders;
+namespace WeatherForecast.Tests;
+
 using OpenQA.Selenium;
 using OpenQA.Selenium.Chrome;
 using OpenQA.Selenium.Support.UI;
-using WeatherForecast.Entities;
-using Xunit;
-
-namespace WeatherForecast.Tests;
 
 public static class WeatherForecastTest
 {
@@ -36,13 +25,13 @@ public static class WeatherForecastTest
 
       // When
       var response = await _weatherForecastContainer.GetAsync(path)
-        .ConfigureAwait(false);
+        .ConfigureAwait(true);
 
       var weatherForecastStream = await response.Content.ReadAsStreamAsync()
-        .ConfigureAwait(false);
+        .ConfigureAwait(true);
 
       var weatherForecast = await JsonSerializer.DeserializeAsync<IEnumerable<WeatherData>>(weatherForecastStream)
-        .ConfigureAwait(false);
+        .ConfigureAwait(true);
 
       // Then
       Assert.Equal(HttpStatusCode.OK, response.StatusCode);

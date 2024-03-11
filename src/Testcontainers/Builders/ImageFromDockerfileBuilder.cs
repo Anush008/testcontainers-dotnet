@@ -81,7 +81,7 @@ namespace DotNet.Testcontainers.Builders
     }
 
     /// <inheritdoc />
-    public ImageFromDockerfileBuilder WithImageBuildPolicy(Func<ImagesListResponse, bool> imageBuildPolicy)
+    public ImageFromDockerfileBuilder WithImageBuildPolicy(Func<ImageInspectResponse, bool> imageBuildPolicy)
     {
       return Merge(DockerResourceConfiguration, new ImageFromDockerfileConfiguration(imageBuildPolicy: imageBuildPolicy));
     }
@@ -110,6 +110,16 @@ namespace DotNet.Testcontainers.Builders
     protected sealed override ImageFromDockerfileBuilder Init()
     {
       return base.Init().WithImageBuildPolicy(PullPolicy.Always).WithDockerfile("Dockerfile").WithDockerfileDirectory(Directory.GetCurrentDirectory()).WithName(new DockerImage("localhost/testcontainers", Guid.NewGuid().ToString("D"), string.Empty));
+    }
+
+    /// <inheritdoc />
+    protected override void Validate()
+    {
+      base.Validate();
+
+      const string reuseNotSupported = "Building an image does not support the reuse feature. To keep the built image, disable the cleanup.";
+      _ = Guard.Argument(DockerResourceConfiguration, nameof(IImageFromDockerfileConfiguration.Reuse))
+        .ThrowIf(argument => argument.Value.Reuse.HasValue && argument.Value.Reuse.Value, argument => new ArgumentException(reuseNotSupported, argument.Name));
     }
 
     /// <inheritdoc />

@@ -1,6 +1,6 @@
-#tool nuget:?package=dotnet-sonarscanner&version=5.13.0
+#tool nuget:?package=dotnet-sonarscanner&version=5.15.0
 
-#addin nuget:?package=Cake.Sonar&version=1.1.31
+#addin nuget:?package=Cake.Sonar&version=1.1.32
 
 #addin nuget:?package=Cake.Git&version=3.0.0
 
@@ -67,6 +67,7 @@ Task("Build")
     Verbosity = param.Verbosity,
     NoRestore = true,
     ArgumentCustomization = args => args
+      .Append($"/p:ContinuousIntegrationBuild=true")
   });
 });
 
@@ -80,7 +81,6 @@ Task("Tests")
     NoRestore = true,
     NoBuild = true,
     Collectors = new[] { "XPlat Code Coverage;Format=opencover" },
-    Loggers = new[] { "trx" },
     Filter = param.TestFilter,
     ResultsDirectory = param.Paths.Directories.TestResultsDirectoryPath,
     ArgumentCustomization = args => args
@@ -94,7 +94,7 @@ Task("Sonar-Begin")
   {
     Url = param.SonarQubeCredentials.Url,
     Key = param.SonarQubeCredentials.Key,
-    Login = param.SonarQubeCredentials.Token,
+    Token = param.SonarQubeCredentials.Token,
     Organization = param.SonarQubeCredentials.Organization,
     Branch = param.IsPullRequest ? null : param.Branch, // A pull request analysis cannot have the branch analysis parameter 'sonar.branch.name'.
     UseCoreClr = true,
@@ -116,7 +116,7 @@ Task("Sonar-End")
 {
   SonarEnd(new SonarEndSettings
   {
-    Login = param.SonarQubeCredentials.Token,
+    Token = param.SonarQubeCredentials.Token,
     UseCoreClr = true
   });
 });
@@ -131,12 +131,8 @@ Task("Create-NuGet-Packages")
     Verbosity = param.Verbosity,
     NoRestore = true,
     NoBuild = true,
-    IncludeSymbols = true,
-    SymbolPackageFormat = "snupkg",
     OutputDirectory = param.Paths.Directories.NuGetDirectoryPath,
     ArgumentCustomization = args => args
-      .Append("/p:ContinuousIntegrationBuild=true")
-      .Append("/p:EmbedUntrackedSources=true")
       .Append($"/p:Version={param.Version}")
   });
 });
@@ -161,7 +157,7 @@ Task("Publish-NuGet-Packages")
   .WithCriteria(() => param.ShouldPublish)
   .Does(() =>
 {
-  foreach(var package in GetFiles($"{param.Paths.Directories.NuGetDirectoryPath}/*.(nupkg|snupkgs)"))
+  foreach (var package in GetFiles($"{param.Paths.Directories.NuGetDirectoryPath}/*.nupkg"))
   {
     DotNetNuGetPush(package.FullPath, new DotNetNuGetPushSettings
     {

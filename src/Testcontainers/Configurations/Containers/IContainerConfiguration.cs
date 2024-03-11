@@ -34,7 +34,7 @@ namespace DotNet.Testcontainers.Configurations
     /// <summary>
     /// Gets the image pull policy.
     /// </summary>
-    Func<ImagesListResponse, bool> ImagePullPolicy { get; }
+    Func<ImageInspectResponse, bool> ImagePullPolicy { get; }
 
     /// <summary>
     /// Gets the name.
@@ -82,9 +82,9 @@ namespace DotNet.Testcontainers.Configurations
     IReadOnlyDictionary<string, string> PortBindings { get; }
 
     /// <summary>
-    /// Gets a dictionary of resource mappings.
+    /// Gets a list of resource mappings.
     /// </summary>
-    IReadOnlyDictionary<string, IResourceMapping> ResourceMappings { get; }
+    IEnumerable<IResourceMapping> ResourceMappings { get; }
 
     /// <summary>
     /// Gets a list of dependent containers.

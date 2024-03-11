@@ -52,8 +52,8 @@ namespace DotNet.Testcontainers.Tests.Unit
       var client = new TestcontainersClient(ResourceReaper.DefaultSessionId, TestcontainersSettings.OS.DockerEndpointAuthConfig, NullLogger.Instance);
 
       // When
-      var networkResponse = await client.Network.ByNameAsync(_network.Name)
-        .ConfigureAwait(false);
+      var networkResponse = await client.Network.ByIdAsync(_network.Name)
+        .ConfigureAwait(true);
 
       // Then
       Assert.Equal(Option.Value, Assert.Contains(Option.Key, networkResponse.Options));
@@ -66,8 +66,8 @@ namespace DotNet.Testcontainers.Tests.Unit
       var client = new TestcontainersClient(ResourceReaper.DefaultSessionId, TestcontainersSettings.OS.DockerEndpointAuthConfig, NullLogger.Instance);
 
       // When
-      var networkResponse = await client.Network.ByNameAsync(_network.Name)
-        .ConfigureAwait(false);
+      var networkResponse = await client.Network.ByIdAsync(_network.Name)
+        .ConfigureAwait(true);
 
       // Then
       Assert.Equal(Label.Value, Assert.Contains(Label.Key, networkResponse.Labels));

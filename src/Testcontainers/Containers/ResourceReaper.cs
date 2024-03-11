@@ -32,7 +32,7 @@ namespace DotNet.Testcontainers.Containers
     /// </summary>
     private const int RetryTimeoutInSeconds = 2;
 
-    private static readonly IImage RyukImage = new DockerImage("testcontainers/ryuk:0.5.1");
+    private static readonly IImage RyukImage = new DockerImage("testcontainers/ryuk:0.6.0");
 
     private static readonly SemaphoreSlim DefaultLock = new SemaphoreSlim(1, 1);
 
@@ -279,7 +279,7 @@ namespace DotNet.Testcontainers.Containers
       {
         if (!TryGetEndpoint(out var host, out var port))
         {
-          await Task.Delay(TimeSpan.FromSeconds(RetryTimeoutInSeconds), default)
+          await Task.Delay(TimeSpan.FromSeconds(RetryTimeoutInSeconds), CancellationToken.None)
             .ConfigureAwait(false);
 
           continue;
@@ -291,8 +291,13 @@ namespace DotNet.Testcontainers.Containers
 
           try
           {
+#if NET6_0_OR_GREATER
+            await tcpClient.ConnectAsync(host, port, ct)
+              .ConfigureAwait(false);
+#else
             await tcpClient.ConnectAsync(host, port)
               .ConfigureAwait(false);
+#endif
 
             var stream = tcpClient.GetStream();
 
@@ -306,11 +311,11 @@ namespace DotNet.Testcontainers.Containers
             {
               using (var messageBuffer = new MemoryStream())
               {
-#if NETSTANDARD2_1_OR_GREATER
-                await stream.WriteAsync(new ReadOnlyMemory<byte>(sendBytes), ct)
+#if NETSTANDARD2_0
+                await stream.WriteAsync(sendBytes, 0, sendBytes.Length, ct)
                   .ConfigureAwait(false);
 #else
-                await stream.WriteAsync(sendBytes, 0, sendBytes.Length, ct)
+                await stream.WriteAsync(sendBytes, ct)
                   .ConfigureAwait(false);
 #endif
 
@@ -321,11 +326,11 @@ namespace DotNet.Testcontainers.Containers
 
                 do
                 {
-#if NETSTANDARD2_1_OR_GREATER
-                  var numberOfBytes = await stream.ReadAsync(new Memory<byte>(readBytes), ct)
+#if NETSTANDARD2_0
+                  var numberOfBytes = await stream.ReadAsync(readBytes, 0, readBytes.Length, ct)
                     .ConfigureAwait(false);
 #else
-                  var numberOfBytes = await stream.ReadAsync(readBytes, 0, readBytes.Length, ct)
+                  var numberOfBytes = await stream.ReadAsync(readBytes, ct)
                     .ConfigureAwait(false);
 #endif
 
@@ -367,11 +372,11 @@ namespace DotNet.Testcontainers.Containers
             while (!_maintainConnectionCts.IsCancellationRequested)
             {
               // Keep the connection to Ryuk up.
-#if NETSTANDARD2_1_OR_GREATER
-              _ = await stream.ReadAsync(new Memory<byte>(readBytes), _maintainConnectionCts.Token)
+#if NETSTANDARD2_0
+              _ = await stream.ReadAsync(readBytes, 0, readBytes.Length, _maintainConnectionCts.Token)
                 .ConfigureAwait(false);
 #else
-              _ = await stream.ReadAsync(readBytes, 0, readBytes.Length, _maintainConnectionCts.Token)
+              _ = await stream.ReadAsync(readBytes, _maintainConnectionCts.Token)
                 .ConfigureAwait(false);
 #endif
             }
@@ -384,14 +389,14 @@ namespace DotNet.Testcontainers.Containers
           {
             _resourceReaperContainer.Logger.CanNotConnectToResourceReaper(SessionId, host, port, e);
 
-            await Task.Delay(TimeSpan.FromSeconds(RetryTimeoutInSeconds), default)
+            await Task.Delay(TimeSpan.FromSeconds(RetryTimeoutInSeconds), CancellationToken.None)
               .ConfigureAwait(false);
           }
           catch (Exception e)
           {
             _resourceReaperContainer.Logger.LostConnectionToResourceReaper(SessionId, host, port, e);
 
-            await Task.Delay(TimeSpan.FromSeconds(RetryTimeoutInSeconds), default)
+            await Task.Delay(TimeSpan.FromSeconds(RetryTimeoutInSeconds), CancellationToken.None)
               .ConfigureAwait(false);
           }
         }

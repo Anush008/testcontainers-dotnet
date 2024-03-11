@@ -7,7 +7,6 @@ namespace DotNet.Testcontainers.Containers
   using System.Linq;
   using System.Threading;
   using System.Threading.Tasks;
-  using Docker.DotNet;
   using Docker.DotNet.Models;
   using DotNet.Testcontainers.Clients;
   using DotNet.Testcontainers.Configurations;
@@ -61,6 +60,15 @@ namespace DotNet.Testcontainers.Containers
 
     /// <inheritdoc />
     public ILogger Logger { get; }
+
+    /// <inheritdoc />
+    public DateTime CreatedTime { get; private set; }
+
+    /// <inheritdoc />
+    public DateTime StartedTime { get; private set; }
+
+    /// <inheritdoc />
+    public DateTime StoppedTime { get; private set; }
 
     /// <inheritdoc />
     public string Id
@@ -365,12 +373,43 @@ namespace DotNet.Testcontainers.Containers
 
       Creating?.Invoke(this, EventArgs.Empty);
 
-      var id = await _client.RunAsync(_configuration, ct)
+      string id;
+
+      if (_configuration.Reuse.HasValue && _configuration.Reuse.Value)
+      {
+        Logger.ReusableExperimentalFeature();
+
+        var filters = new FilterByReuseHash(_configuration);
+
+        var reusableContainers = await _client.Container.GetAllAsync(filters, ct)
+          .ConfigureAwait(false);
+
+        var reusableContainer = reusableContainers.SingleOrDefault();
+
+        if (reusableContainer != null)
+        {
+          Logger.ReusableResourceFound();
+
+          id = reusableContainer.ID;
+        }
+        else
+        {
+          Logger.ReusableResourceNotFound();
+
+          id = await _client.RunAsync(_configuration, ct)
+            .ConfigureAwait(false);
+        }
+      }
+      else
+      {
+        id = await _client.RunAsync(_configuration, ct)
+          .ConfigureAwait(false);
+      }
+
+      _container = await _client.Container.ByIdAsync(id, ct)
         .ConfigureAwait(false);
 
-      _container = await _client.InspectContainerAsync(id, ct)
-        .ConfigureAwait(false);
-
+      CreatedTime = DateTime.UtcNow;
       Created?.Invoke(this, EventArgs.Empty);
     }
 
@@ -391,6 +430,10 @@ namespace DotNet.Testcontainers.Containers
         .ConfigureAwait(false);
 
       _container = new ContainerInspectResponse();
+
+      CreatedTime = default;
+      StartedTime = default;
+      StoppedTime = default;
     }
 
     /// <summary>
@@ -407,7 +450,7 @@ namespace DotNet.Testcontainers.Containers
 
       async Task<bool> CheckPortBindingsAsync()
       {
-        _container = await _client.InspectContainerAsync(_container.ID, ct)
+        _container = await _client.Container.ByIdAsync(_container.ID, ct)
           .ConfigureAwait(false);
 
         var boundPorts = _container.NetworkSettings.Ports.Values.Where(portBindings => portBindings != null).SelectMany(portBinding => portBinding).Count(portBinding => !string.IsNullOrEmpty(portBinding.HostPort));
@@ -416,7 +459,7 @@ namespace DotNet.Testcontainers.Containers
 
       async Task<bool> CheckWaitStrategyAsync(IWaitUntil wait)
       {
-        _container = await _client.InspectContainerAsync(_container.ID, ct)
+        _container = await _client.Container.ByIdAsync(_container.ID, ct)
           .ConfigureAwait(false);
 
         return await wait.UntilAsync(this)
@@ -447,6 +490,7 @@ namespace DotNet.Testcontainers.Containers
 
       Logger.CompleteReadinessCheck(_container.ID);
 
+      StartedTime = DateTime.UtcNow;
       Started?.Invoke(this, EventArgs.Empty);
     }
 
@@ -472,23 +516,17 @@ namespace DotNet.Testcontainers.Containers
       await _client.StopAsync(_container.ID, ct)
         .ConfigureAwait(false);
 
-      try
-      {
-        _container = await _client.InspectContainerAsync(_container.ID, ct)
-          .ConfigureAwait(false);
-      }
-      catch (DockerApiException)
-      {
-        _container = new ContainerInspectResponse();
-      }
+      _container = await _client.Container.ByIdAsync(_container.ID, ct)
+        .ConfigureAwait(false);
 
+      StoppedTime = DateTime.UtcNow;
       Stopped?.Invoke(this, EventArgs.Empty);
     }
 
     /// <inheritdoc />
     protected override bool Exists()
     {
-      return ContainerHasBeenCreatedStates.HasFlag(State);
+      return _container != null && ContainerHasBeenCreatedStates.HasFlag(State);
     }
   }
 }

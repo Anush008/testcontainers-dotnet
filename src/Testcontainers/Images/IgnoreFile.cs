@@ -73,14 +73,17 @@ namespace DotNet.Testcontainers.Images
         // Prepare exact and partial patterns.
         .Aggregate(new List<KeyValuePair<string, bool>>(), (lines, line) =>
         {
-          var key = line.Key;
-          var value = line.Value;
+          const string globstar = "**/";
 
-          lines.AddRange(key
-            .Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries)
-            .Skip(1)
-            .Prepend(key)
-            .Select(ignorePattern => new KeyValuePair<string, bool>(ignorePattern, value)));
+          if (line.Key.Contains(globstar))
+          {
+            lines.Add(line);
+            lines.Add(new KeyValuePair<string, bool>(line.Key.Replace(globstar, string.Empty), line.Value));
+          }
+          else
+          {
+            lines.Add(line);
+          }
 
           return lines;
         })
@@ -133,7 +136,7 @@ namespace DotNet.Testcontainers.Images
     public bool Accepts(string file)
     {
       var matches = _ignorePatterns.AsParallel().Where(ignorePattern => ignorePattern.Key.IsMatch(file)).ToArray();
-      return !matches.Any() || matches[matches.Length - 1].Value;
+      return matches.Length == 0 || matches[matches.Length - 1].Value;
     }
 
     /// <summary>
@@ -193,10 +196,10 @@ namespace DotNet.Testcontainers.Images
         }
 
         // Replace the last non recursive wildcard with a match-zero-or-one quantifier regular expression.
-#if NETSTANDARD2_1_OR_GREATER
-        if (input.Contains('*') && index >= 0)
-#else
+#if NETSTANDARD2_0
         if (input.Contains("*") && index >= 0)
+#else
+        if (input.Contains('*') && index >= 0)
 #endif
         {
           input = input.Remove(index, 1).Insert(index, $"{MatchAllExceptPathSeparator}?");

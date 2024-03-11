@@ -67,21 +67,53 @@ namespace DotNet.Testcontainers.Builders
         return null;
       }
 
+      if (authProperty.Value.TryGetProperty("identitytoken", out var identityToken) && JsonValueKind.String.Equals(identityToken.ValueKind))
+      {
+        var identityTokenValue = identityToken.GetString();
+
+        if (!string.IsNullOrEmpty(identityTokenValue))
+        {
+          _logger.DockerRegistryCredentialFound(hostname);
+          return new DockerRegistryAuthenticationConfiguration(authProperty.Name, null, null, identityTokenValue);
+        }
+      }
+
       if (!authProperty.Value.TryGetProperty("auth", out var auth))
       {
         return null;
       }
 
-      if (string.IsNullOrEmpty(auth.GetString()))
+      if (!JsonValueKind.String.Equals(auth.ValueKind) && !JsonValueKind.Null.Equals(auth.ValueKind))
       {
+        _logger.DockerRegistryAuthPropertyValueKindInvalid(hostname, auth.ValueKind);
         return null;
       }
 
-      var credentialInBytes = Convert.FromBase64String(auth.GetString());
-      var credential = Encoding.UTF8.GetString(credentialInBytes).Split(new[] { ':' }, 2);
+      var authValue = auth.GetString();
+
+      if (string.IsNullOrEmpty(authValue))
+      {
+        _logger.DockerRegistryAuthPropertyValueNotFound(hostname);
+        return null;
+      }
+
+      byte[] credentialInBytes;
+
+      try
+      {
+        credentialInBytes = Convert.FromBase64String(authValue);
+      }
+      catch (FormatException e)
+      {
+        _logger.DockerRegistryAuthPropertyValueInvalidBase64(hostname, e);
+        return null;
+      }
+
+      var credential = Encoding.Default.GetString(credentialInBytes).Split(new[] { ':' }, 2);
 
       if (credential.Length != 2)
       {
+        _logger.DockerRegistryAuthPropertyValueInvalidBasicAuthenticationFormat(hostname);
         return null;
       }
 

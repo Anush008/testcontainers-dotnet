@@ -4,9 +4,9 @@ namespace DotNet.Testcontainers.Clients
   using System.Collections.Generic;
   using System.Globalization;
   using System.IO;
-  using System.Linq;
   using System.Threading;
   using System.Threading.Tasks;
+  using Docker.DotNet;
   using Docker.DotNet.Models;
   using DotNet.Testcontainers.Configurations;
   using DotNet.Testcontainers.Containers;
@@ -24,43 +24,43 @@ namespace DotNet.Testcontainers.Clients
 
     public async Task<IEnumerable<ContainerListResponse>> GetAllAsync(CancellationToken ct = default)
     {
-      return (await Docker.Containers.ListContainersAsync(new ContainersListParameters { All = true }, ct)
-        .ConfigureAwait(false)).ToArray();
+      return await Docker.Containers.ListContainersAsync(new ContainersListParameters { All = true }, ct)
+        .ConfigureAwait(false);
     }
 
-    public Task<ContainerListResponse> ByIdAsync(string id, CancellationToken ct = default)
+    public async Task<IEnumerable<ContainerListResponse>> GetAllAsync(FilterByProperty filters, CancellationToken ct = default)
     {
-      return ByPropertyAsync("id", id, ct);
+      return await Docker.Containers.ListContainersAsync(new ContainersListParameters { All = true, Filters = filters }, ct)
+        .ConfigureAwait(false);
     }
 
-    public Task<ContainerListResponse> ByNameAsync(string name, CancellationToken ct = default)
+    public async Task<ContainerInspectResponse> ByIdAsync(string id, CancellationToken ct = default)
     {
-      return ByPropertyAsync("name", name, ct);
-    }
-
-    public async Task<ContainerListResponse> ByPropertyAsync(string property, string value, CancellationToken ct = default)
-    {
-      var filters = new FilterByProperty { { property, value } };
-      return (await Docker.Containers.ListContainersAsync(new ContainersListParameters { All = true, Filters = filters }, ct)
-        .ConfigureAwait(false)).FirstOrDefault();
+      try
+      {
+        return await Docker.Containers.InspectContainerAsync(id, ct)
+          .ConfigureAwait(false);
+      }
+      catch (DockerApiException)
+      {
+        return null;
+      }
     }
 
     public async Task<bool> ExistsWithIdAsync(string id, CancellationToken ct = default)
     {
-      return await ByIdAsync(id, ct)
-        .ConfigureAwait(false) != null;
-    }
+      var response = await ByIdAsync(id, ct)
+        .ConfigureAwait(false);
 
-    public async Task<bool> ExistsWithNameAsync(string name, CancellationToken ct = default)
-    {
-      return await ByNameAsync(name, ct)
-        .ConfigureAwait(false) != null;
+      return response != null;
     }
 
     public async Task<long> GetExitCodeAsync(string id, CancellationToken ct = default)
     {
-      return (await Docker.Containers.WaitContainerAsync(id, ct)
-        .ConfigureAwait(false)).StatusCode;
+      var response = await Docker.Containers.WaitContainerAsync(id, ct)
+        .ConfigureAwait(false);
+
+      return response.StatusCode;
     }
 
     public async Task<(string Stdout, string Stderr)> GetLogsAsync(string id, TimeSpan since, TimeSpan until, bool timestampsEnabled = true, CancellationToken ct = default)
@@ -69,8 +69,8 @@ namespace DotNet.Testcontainers.Clients
       {
         ShowStdout = true,
         ShowStderr = true,
-        Since = since.TotalSeconds.ToString("0", CultureInfo.InvariantCulture),
-        Until = until.TotalSeconds.ToString("0", CultureInfo.InvariantCulture),
+        Since = Math.Max(0, Math.Floor(since.TotalSeconds)).ToString("0", CultureInfo.InvariantCulture),
+        Until = Math.Max(0, Math.Floor(until.TotalSeconds)).ToString("0", CultureInfo.InvariantCulture),
         Timestamps = timestampsEnabled,
       };
 
@@ -100,9 +100,9 @@ namespace DotNet.Testcontainers.Clients
       return Docker.Containers.RemoveContainerAsync(id, new ContainerRemoveParameters { Force = true, RemoveVolumes = true }, ct);
     }
 
-    public Task ExtractArchiveToContainerAsync(string id, string path, Stream tarStream, CancellationToken ct = default)
+    public Task ExtractArchiveToContainerAsync(string id, string path, TarOutputMemoryStream tarStream, CancellationToken ct = default)
     {
-      _logger.CopyArchiveToDockerContainer(id, path);
+      _logger.CopyArchiveToDockerContainer(id, tarStream.ContentLength);
       return Docker.Containers.ExtractArchiveToContainerAsync(id, new ContainerPathStatParameters { Path = path, AllowOverwriteDirWithFile = false }, tarStream, ct);
     }
 
@@ -200,6 +200,11 @@ namespace DotNet.Testcontainers.Clients
         NetworkingConfig = networkingConfig,
       };
 
+      if (configuration.Reuse.HasValue && configuration.Reuse.Value)
+      {
+        createParameters.Labels.Add(TestcontainersClient.TestcontainersReuseHashLabel, configuration.GetReuseHash());
+      }
+
       if (configuration.ParameterModifiers != null)
       {
         foreach (var parameterModifier in configuration.ParameterModifiers)
@@ -213,11 +218,6 @@ namespace DotNet.Testcontainers.Clients
 
       _logger.DockerContainerCreated(createContainerResponse.ID);
       return createContainerResponse.ID;
-    }
-
-    public Task<ContainerInspectResponse> InspectAsync(string id, CancellationToken ct = default)
-    {
-      return Docker.Containers.InspectContainerAsync(id, ct);
     }
   }
 }
